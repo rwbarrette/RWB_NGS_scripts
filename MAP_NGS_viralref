@@ -1,0 +1,783 @@
+from Bio.Blast import NCBIStandalone
+from Bio import SeqIO
+from Bio.Blast import NCBIWWW
+from Bio.Blast import NCBIXML
+from Bio import Entrez
+import MySQLdb
+
+def SetupTables(FileID):
+    conn = MySQLdb.connect(host = HOSTremote,
+                           user = USER,
+                           passwd = PASS,
+                           db = DB)
+    cursor = conn.cursor()
+    
+    dropline = ("DROP TABLE IF EXISTS VIRALFastQReads%s") %(FileID)
+    cursor.execute(dropline)
+
+    dropline = ("DROP TABLE IF EXISTS VIRALFastQResultsNT%s")%(FileID)
+    cursor.execute(dropline)
+    
+    dropline = ("DROP TABLE IF EXISTS VIRALReadProfiles%s")%(FileID)
+    cursor.execute(dropline)
+    
+    executeline =("""CREATE TABLE VIRALFastQReads%s
+                       (
+                       SeqGI VARCHAR(50),
+                       SeqID VARCHAR(250),
+                       Sequence VARCHAR(10000),
+                       Direction VARCHAR(25),
+                       Qscore VARCHAR(10),
+                       INDEX (SeqGI))                     
+                       """) %(FileID)
+    cursor.execute(executeline)
+    
+    executeline2 =("""CREATE TABLE VIRALFastQResultsNT%s
+                       (
+                       QueID VARCHAR(250),
+                       SeqID VARCHAR(250),
+                       SequenceQUE VARCHAR(10000),
+                       SequenceMATCH VARCHAR(10000),
+                       SequenceSUBJ VARCHAR(10000),
+                       StartPos INTEGER(20),
+                       EndPos INTEGER(20),
+                       Direction VARCHAR(25))
+                       """) %(FileID)
+    cursor.execute(executeline2)
+   
+    executeline3 =("""CREATE TABLE VIRALReadProfiles%s
+                        (
+                        Title VARCHAR(250),
+                        ReadCount INTEGER)
+                        """) %(FileID)
+    cursor.execute(executeline3)
+    
+
+    
+    cursor.close() 
+    conn.commit()
+    conn.close()
+
+    fastq_name = ("/users/rwbarrettemac/bioinformatics/pythonfolders/TorrentFiles/RawSequenceList.fasta")
+    fastq_file = open(fastq_name, "w")
+    fastq_file.close()
+
+def occurrences(string, sub):
+    count = start = 0
+    while True:
+        start = string.find(sub, start) + 1
+        if start > 0:
+            count+=1
+        else:
+            return count
+
+def ReadFastQinFile(infile_FASTq, FileID, Direction, FASTformat, IDstart): #Sets up FASTA file from FASTQ
+    from Bio import SeqIO
+    
+    conn = MySQLdb.connect(host = HOSTremote,
+                           user = USER,
+                           passwd = PASS,
+                           db = DB)
+    cursor = conn.cursor()
+    
+    ID = IDstart
+    fastq_name = ("/users/rwbarrettemac/bioinformatics/pythonfolders/TorrentFiles/RawSequenceList.fasta")
+    handleb = open(infile_FASTq)
+    fq_dict2 = SeqIO.parse(handleb,FASTformat)
+
+    print "Reading Fastq " + Direction + "..."
+    for seqb in fq_dict2:
+        if FASTformat=="fastq":
+        
+        
+            if ID <>-1:
+                ID = ID + 1
+                QscoreMin = min(seqb.letter_annotations["phred_quality"])
+                fastq_file = open(fastq_name, "a")
+        #print QscoreMin
+        
+                fastq_sequence = seqb.seq.tostring()
+                LenSequence = len(fastq_sequence)
+                Ncount= occurrences(fastq_sequence, "N")
+                if Ncount == 0:
+                #print "BLAH!!!"
+                    fastq_IDstring = ">gi|" +  str(ID) + "|gb|" + str(ID) + "|" + str(Direction) + "\n"
+            #print fastq_IDstring
+        #print fastq_IDstring, fastq_sequence
+                    fastq_file.write(fastq_IDstring)
+
+                    ArguementsDB = " '"+ str(ID) + "','" +str(fastq_IDstring) + "','" + fastq_sequence + "','" + Direction + "','" + str(QscoreMin) + "' "
+                    EnterLine = "VIRALfastQReads%s(SeqGI, SeqID, Sequence, Direction, Qscore) VALUES (" + ArguementsDB + ")"
+                    EnterLineB = EnterLine%(FileID)
+                    ActLine = "INSERT INTO " + EnterLineB
+                               
+                    cursor.execute(ActLine)
+        
+                    for i in range(0, len(fastq_sequence), 72):
+                        fastq_file.write(fastq_sequence[i:i+72])
+                        fastq_file.write("\n")
+            else:
+            
+                    continue
+        else:
+            if FASTformat=="fasta":
+                ID = ID + 1
+                fastq_file = open(fastq_name, "a")
+                fasta_sequence = seqb.seq.tostring()
+                LenSequence = len(fasta_sequence)
+                QscoreMin = "NA"
+                Ncount= occurrences(fasta_sequence, "N")
+                if Ncount == 0:
+                    fasta_IDstring = ">gi|" +  str(ID) + "|gb|" + str(ID) + "|" + str(Direction) + "\n"
+                    fastq_file.write(fasta_IDstring)
+                    
+                    ArguementsDB = " '"+ str(ID) + "','" +str(fasta_IDstring) + "','" + fasta_sequence + "','" + Direction + "','" + str(QscoreMin) + "' "
+                    EnterLine = "VIRALfastQReads%s(SeqGI, SeqID, Sequence, Direction, Qscore) VALUES (" + ArguementsDB + ")"
+                    EnterLineB = EnterLine%(FileID)
+                    ActLine = "INSERT INTO " + EnterLineB
+                    
+                    cursor.execute(ActLine)
+                    for i in range(0, len(fasta_sequence), 72):
+                        fastq_file.write(fasta_sequence[i:i+72])
+                        fastq_file.write("\n")
+            else:
+                
+                    continue
+      
+    handleb.close()
+    
+    cursor.close()
+    conn.commit()
+    conn.close()
+
+#FormatDB(fastq_name, "F", "/bioinformatics/pythonfolders/TorrentFiles/TorrentDB/RawSequenceDB")
+#MakeDB(fastq_name, "nucl", "/users/rwbarrettemac/bioinformatics/pythonfolders/TorrentFiles/TorrentDB/RawSequenceDB")
+    return ID
+
+def FormatDB(Inputfile, proteinDB_TF, DBtitle):
+    import os
+    import sys
+    try:
+        print "Building BLAST database..."
+        FORMATDB_CMDLINE = "/usr/local/ncbi/blast/bin/formatdb -i %s -p %s -o T -n %s"
+        status = os.system(FORMATDB_CMDLINE % (Inputfile, proteinDB_TF, DBtitle))
+    except:
+        print "DB build failed..."
+
+def MakeDB(Inputfile, dbType, DBtitle):
+    import os
+    import sys
+    
+    print "Building BLAST database..."
+    MAKEDB_CMDLINE = "/usr/local/ncbi/blast/bin/makeblastdb -in %s -out %s -parse_seqids -dbtype %s"
+    status = os.system(MAKEDB_CMDLINE % (Inputfile, DBtitle, dbType))
+
+        
+def IterateVirusFile(FileID, ViralDB):
+    from Bio import SeqIO
+    
+  
+
+
+    conn1 = MySQLdb.connect(host = HOSTremote,
+                           user = USER,
+                           passwd = PASS,
+                           db = DB)
+    cursor1 = conn1.cursor()    
+    
+    dropline4 = ("DROP TABLE IF EXISTS VIRALFastQReadsREMOVECONSOLIDATED%s")%(FileID)
+  
+    cursor1.execute(dropline4)
+
+    executeline4 =("""CREATE TABLE VIRALFastQReadsREMOVECONSOLIDATED%s
+                       (
+                       SeqGI VARCHAR(50),
+                       QueTitle VARCHAR(250),
+                       QueLen INTEGER,
+                       StartPOS INTEGER,
+                       EndPOS INTEGER,
+                       SpecID INTEGER,
+                       Direction VARCHAR(25),
+                       INDEX(SeqGI)
+                       )                     
+                       """)%(FileID)
+    cursor1.execute(executeline4)
+    
+    cursor1.close()
+    conn1.commit()
+    conn1.close()
+    
+    ConsolidateCount = 0
+    
+        
+        #TorrentHandlePRE = open("/users/rwbarrettemac/bioinformatics/pythonfolders/TorrentFiles/RawSequenceList.fasta")
+    TorrentHandlePRE = open(ViralDB)
+    fq_list = SeqIO.parse(TorrentHandlePRE, "fasta")
+    for fqs in fq_list:
+        
+        conn = MySQLdb.connect(host = HOSTremote,
+                           user = USER,
+                           passwd = PASS,
+                           db = DB)
+        cursor = conn.cursor()
+        
+        dropline = ("DROP TABLE IF EXISTS VIRALFastQReadsREMOVE%s")%(FileID)
+        cursor.execute(dropline)
+    
+        executeline =("""CREATE TABLE VIRALFastQReadsREMOVE%s
+                       (
+                       SeqGI VARCHAR(50),
+                       QueTitle VARCHAR(250),
+                       QueLen INTEGER,
+                       StartPOS INTEGER,
+                       EndPOS INTEGER,
+                       SpecID INTEGER,
+                       Direction VARCHAR(25),
+                       INDEX(SeqGI)
+                       )                     
+                       """) %(FileID)
+        cursor.execute(executeline)
+        
+        
+        
+        cursor.close()
+        conn.commit()
+        conn.close()
+    
+        ViralQueFile = open("/users/rwbarrettemac/bioinformatics/pythonfolders/TorrentFiles/VirusQue.fasta", "w")
+        ViralQueSeq = fqs.seq.tostring()
+        preViralQueIDa = fqs.description
+        
+        Filter1 = preViralQueIDa.find("phage")
+        Filter2 = preViralQueIDa.find("mosaic")
+        Filter3 = preViralQueIDa.find("bunchy")
+        Filter4 = preViralQueIDa.find("tomato")
+        Filter5 = preViralQueIDa.find("leaf")
+        Filter6 = preViralQueIDa.find("vein")
+        Filter7 = preViralQueIDa.find("mottle")
+        Filter8 = preViralQueIDa.find("dwarf")
+        Filter9 = preViralQueIDa.find("tobacco")
+        Filter10 = preViralQueIDa.find("ringspot")
+        Filter11 = preViralQueIDa.find("stunt")
+        Filter12 = preViralQueIDa.find("necrotic")
+        Filter13 = preViralQueIDa.find("lettuce")
+        Filter14 = preViralQueIDa.find("wilt")
+        Filter15 = preViralQueIDa.find("Beet")
+        Filter16 = preViralQueIDa.find("Oat")
+        Filter17 = preViralQueIDa.find("Tomato")
+        Filter18 = preViralQueIDa.find("Potato")
+        Filter19 = preViralQueIDa.find("Cherry")
+        Filter20 = preViralQueIDa.find("Banana")
+        Filter21 = preViralQueIDa.find("Peanut")
+        Filter22 = preViralQueIDa.find("Melon")
+        
+        if Filter1 > 0 or Filter2 > 0 or Filter3 > 0 or Filter4 >0 or Filter5 >0 or Filter6 >0 or Filter7 > 0 or Filter8 >0 or Filter9 >0 or Filter10 >0 or Filter12 > 0 or Filter13 >0 or Filter14 >0 or Filter15 >0 or Filter16 >0 or Filter17 >0 or Filter18 > 0 or Filter19 >0 or Filter20 >0 or Filter21 >0 or Filter22 >0:
+            continue
+        else:
+        
+            preViralQueIDb = preViralQueIDa.replace("'","")
+            ViralQueID = preViralQueIDb.replace('"',"")
+        
+            ViralQueIDLine = ">" + ViralQueID + "\n"
+        
+        
+        
+            ViralQueFile.write(ViralQueIDLine)
+            ViralQueFile.write(ViralQueSeq)
+            ViralQueFile.write("\n")
+        
+            ViralQueFile.close()
+        
+            print ViralQueID
+                              
+            BlastSequencesV29("/users/rwbarrettemac/bioinformatics/pythonfolders/TorrentFiles/VirusQue.fasta", "blastn", ViralQueID, FileID)
+       
+       #if ConsolidateCount == 10:
+       #     ConsolidateCount = 0
+       #     draw_genomeCONSOLIDATED(FileID)
+       # else:
+#     ConsolidateCount = ConsolidateCount + 1
+
+def BLASTN_v29(outfile, infile, dbfile):
+    import os
+    import sys
+    print "BLASTn (Sequence Read Match)"
+    BLASTN_CMDLINE = "/usr/local/ncbi/blast/bin/blastn -out %s -query %s -db %s -outfmt 5 -num_alignments 100000" #took out -task blastn-short as it was too slow and didn't increase alignments
+    
+    status = os.system(BLASTN_CMDLINE % (outfile, infile, dbfile))
+
+
+
+def BlastSequencesV29(TemplateInFile, BlastType,QueTitle,FileID):
+
+    from Bio.Blast.Applications import NcbiblastnCommandline
+    
+    
+    
+    BlastNThandle = open(TemplateInFile)
+    BlastNTread = SeqIO.parse(BlastNThandle,"fasta")
+    for reads in BlastNTread:
+        TestSeq = reads.seq.tostring()
+    
+    QueLen = len(TestSeq)
+    print "Template Length: ", QueLen
+    
+    IDcnt = 0
+    INDEX = 0
+    DBblast = "/users/rwbarrettemac/bioinformatics/pythonfolders/TorrentFiles/TorrentDB/RawSequenceDB"
+    #SaveTitle = "c:\\TorrentFiles\\FastaQue.fasta"
+    print "Running BLAST..."
+    
+    BLASTN_v29("/users/rwbarrettemac/bioinformatics/pythonfolders/TorrentFiles/VIRCurrentTorrent.xml", TemplateInFile, DBblast)
+    
+    print "BLAST complete."
+    
+    conn = MySQLdb.connect(host = HOSTlocal,
+                           user = USER,
+                           passwd = PASS,
+                           db = DB)
+    cursor = conn.cursor()
+                           
+    from Bio.Blast import NCBIXML
+    result_handleNEW = open("/users/rwbarrettemac/bioinformatics/pythonfolders/TorrentFiles/VIRCurrentTorrent.xml")
+    blast_records = NCBIXML.parse(result_handleNEW)
+    for blast_record in blast_records:
+            
+            
+                               for alignment in blast_record.alignments:
+                #if IDcnt <1:
+                                   for hsp in alignment.hsps:
+                                       if hsp.identities >=0:
+                                        
+                                        IDpep = float(hsp.identities)
+                                        Lenpep = float(len(hsp.query))
+                                        if Lenpep>=100:
+                                           prcntid = IDpep/Lenpep
+                                              
+                                           PreGI = alignment.title
+                                           print PreGI, ".......",Lenpep, "nt"
+                                           QueSEQ = hsp.query  # FASTA in file
+                                           MatchSEQ = hsp.match
+                                           SubjSEQ = hsp.sbjct  # Illumina record
+                                           MatchCNT = MatchSEQ.count("|")
+                                           #print SubjSEQ
+                                           PreDirectionR1 = PreGI.rfind("|R1")
+                                           PreDirectionF1 = PreGI.rfind("|F1")
+                                           PreDirectionVF1 = PreGI.rfind("|VF1")
+                                           PreDirectionVR1 = PreGI.rfind("|VR1")
+                                           PreDirectionR2 = PreGI.rfind("|R2")
+                                           PreDirectionF2 = PreGI.rfind("|F2")
+                                           PreDirectionVF2 = PreGI.rfind("|VF2")
+                                           PreDirectionVR2 = PreGI.rfind("|VR2")
+                                           Direct = "F1"
+                                           
+                                           print PreDirectionF1, PreDirectionR1, PreDirectionVF1, PreDirectionVR1
+                                           print PreDirectionF2, PreDirectionR2, PreDirectionVF2, PreDirectionVR2
+                                           if PreDirectionF1 <> -1:
+                                                Direct = "F1"
+                                           if PreDirectionR1 <> -1:
+                                                Direct = "R1"
+                                           if PreDirectionVF1 <> -1:
+                                                Direct = "VF1"
+                                           if PreDirectionVR1 <> -1:
+                                                Direct = "VR1"
+                                           if PreDirectionF2 <> -1:
+                                                Direct = "F2"
+                                           if PreDirectionR1 <> -1:
+                                                Direct = "R2"
+                                           if PreDirectionVF2 <> -1:
+                                                Direct = "VF2"
+                                           if PreDirectionVR2 <> -1:
+                                                Direct = "VR2"
+                                           
+                                           StartPos = hsp.query_start
+                                           EndPos = hsp.query_end
+                        
+                                           GIstart = 3
+                                           PreGIend = PreGI[GIstart:15]
+                                           GIend = PreGIend.find("|")+ 3
+                                           GIid = PreGI[GIstart:GIend]
+                                           INDEX = INDEX + 1
+                        #print QueSEQ, StartPos, EndPos
+                        #print MatchSEQ
+                        #print SubjSEQ
+                        #
+                                           print GIid  # NEED TO WORK ON REMOVING IDS and Counting the Positives for characterization of sequences.
+                                           QueTitle = QueTitle[0:249]
+                        
+                                           if QueTitle.find("rhino") >= 0 or QueTitle.find("Rhino") >= 0:
+                                                   SpecID = 1
+                                           else:
+                                                           if QueTitle.find("entero") >= 0 or QueTitle.find("Entero") >= 0:
+                                                               SpecID = 2
+                                                           else:
+                                                               if QueTitle.find("coxsack") >= 0 or QueTitle.find("Coxsack") >= 0:
+                                                                   SpecID = 3
+                                                               else:
+                                                                   if QueTitle.find("polio" )>= 0 or QueTitle.find("Polio") >= 0:
+                                                                       SpecID = 4
+                                                                   else:
+                                                                       if QueTitle.find("echo") >= 0 or QueTitle.find("Echo") >= 0:
+                                                                           SpecID = 5
+                                                                       else:
+                                                                           SpecID = 6
+                        
+                        
+                        
+                                           ArguementsDB = " '" + str(QueTitle) + "','" + str(GIid) + "','" +  QueSEQ + "','" + MatchSEQ + "','" + SubjSEQ + "','" + str(StartPos) + "','" + str(EndPos) + "' "
+                                           EnterLine = "VIRALFastQResultsNT%s(QueID, SeqID, SequenceQUE, SequenceMATCH, SequenceSUBJ, StartPos, EndPos) VALUES (" + ArguementsDB + ")"
+                                           ActLine = "INSERT INTO " + EnterLine %(FileID)
+                        
+                                           cursor.execute(ActLine)
+                        
+                                           ArguementsDB = " '" + str(GIid) + "','" + QueTitle + "','" + str(QueLen) + "','" + str(StartPos) + "','" + str(EndPos) + "','" + str(SpecID) + "','" + Direct +"' "
+                                           EnterLine = "VIRALFastQReadsREMOVE%s(SeqGI, QueTitle, QueLen, StartPOS, EndPOS, SpecID, Direction) VALUES (" + ArguementsDB + ")"
+                                           ActLine = "INSERT INTO " + EnterLine%(FileID)
+                        
+                                           cursor.execute(ActLine)
+                        
+                                           ArguementsDB = " '" + str(GIid) + "','" + QueTitle + "','" + str(QueLen) + "','" + str(StartPos) + "','" + str(EndPos) + "','" + str(SpecID) + "','" + Direct +"' "
+                                           EnterLine = "VIRALFastQReadsREMOVECONSOLIDATED%s(SeqGI, QueTitle, QueLen, StartPOS, EndPOS, SpecID, Direction) VALUES (" + ArguementsDB + ")"
+                                           ActLine = "INSERT INTO " + EnterLine%(FileID)
+                        
+#cursor.execute(ActLine)
+
+        
+        #  IDcnt = IDcnt + 1
+        
+    Updateline = """INSERT INTO VIRALReadProfiles%s (Title, ReadCount)
+            SELECT VIRALfastqreadsremove%s.QueTitle, Count(VIRALfastqreadsremove%s.QueTitle) AS CountOfQueTitle
+            FROM VIRALfastqreadsremove%s
+            GROUP BY VIRALfastqreadsremove%s.QueTitle;
+            """ %(FileID, FileID, FileID, FileID, FileID)
+    cursor.execute(Updateline)
+        
+        
+    cursor.close()
+    conn.commit()
+    conn.close()
+        
+        
+    draw_genome(FileID)
+        
+        
+    print INDEX
+       
+
+
+############################################# DRAW GENOME ####################################
+
+from reportlab.pdfgen import canvas
+#from reportlab.lib.colors import Color, red, pink, green, brown, white, blue
+from reportlab.lib.colors import CMYKColor, PCMYKColor
+import MySQLdb
+
+
+def draw_genome(FileID):
+    #c.showPage()
+    conn = MySQLdb.connect(host = HOSTlocal,
+                                  user = USER,
+                                  passwd = PASS,
+                                  db = DB) 
+    cursor = conn.cursor()
+    MidCounter=0
+    Counter = 0
+    yOff = 0
+    selectlinePRE = """SELECT count(*) from VIRALFastqReadsREMOVE%s""" %(FileID)
+    cursor.execute(selectlinePRE)
+    readCOUNT = cursor.fetchone()
+    print readCOUNT[0]
+    readADJUST = readCOUNT[0]/375
+    print readADJUST
+    MidCounter = 0
+    
+    selectline = """SELECT * from VIRALFastqReadsREMOVE%s ORDER BY VIRALFastqReadsREMOVE%s.StartPOS""" %(FileID, FileID)
+    cursor.execute(selectline)
+    RemReads = cursor.fetchall()
+    for rreads in RemReads:
+        
+        
+        rreadGI = rreads[0]
+        rreadTITLE = rreads[1]
+        rreadLEN = rreads[2]
+        rreadSPOS = rreads[3]
+        rreadEPOS = rreads[4]
+        rreadSPEC = rreads[5]
+        rreadDIR = rreads[6]
+            
+        LenCorrect = 500/float(rreadLEN)
+        
+        if Counter <1:
+            genome(c, rreadTITLE, 0, 550 ,25, 0, rreadLEN)                        
+        if MidCounter ==0:
+            rreadLEFT = rreadSPOS-10
+            rreadRIGHT = rreadEPOS +10
+            HitCount = 0
+        if rreadSPOS >= rreadLEFT and rreadEPOS <= rreadRIGHT:
+            HitCount = HitCount +1   
+        #print rreadSPOS*LenCorrect, rreadEPOS*LenCorrect
+        
+        if MidCounter ==readADJUST:
+            print "hitcount ...", HitCount 
+            yOff = yOff+1              
+            feature(rreadSPOS*LenCorrect+50, rreadEPOS*LenCorrect+50, 25+yOff, HitCount,0, readADJUST, 1,1, "x",rreadSPEC, rreadDIR)
+            MidCounter = 0
+            Counter = Counter+1  
+                   
+        else:
+            MidCounter = MidCounter + 1   
+        
+                    
+        if Counter == 100000:#was 1000
+           break
+    c.save()   
+    
+def draw_genomeCONSOLIDATED(FileID):
+    #c.showPage()
+    conn = MySQLdb.connect(host = HOSTlocal,
+                                  user = USER,
+                                  passwd = PASS,
+                                  db = DB) 
+    cursor = conn.cursor()
+    MidCounter=0
+    Counter = 0
+    yOff = 0
+    selectlinePRE = """SELECT count(*) from VIRALFastqReadsREMOVECONSOLIDATED%s""" %(FileID)
+    cursor.execute(selectlinePRE)
+    readCOUNT = cursor.fetchone()
+    print readCOUNT[0]
+    readADJUST = readCOUNT[0]/375
+    print readADJUST
+    MidCounter = 0
+    
+    selectline = """SELECT * from VIRALFastqReadsREMOVECONSOLIDATED%s ORDER BY VIRALFastqReadsREMOVECONSOLIDATED%s.StartPOS""" %(FileID, FileID)
+    cursor.execute(selectline)
+    RemReads = cursor.fetchall()
+    for rreads in RemReads:
+        
+        
+        rreadGI = rreads[0]
+        rreadTITLE = rreads[1]
+        rreadLEN = rreads[2]
+        rreadSPOS = rreads[3]
+        rreadEPOS = rreads[4]
+        rreadSPEC = rreads[5]
+        rreadDIR = rreads[6]
+            
+        LenCorrect = 500/float(rreadLEN)
+        
+        if Counter <1:
+            genome(c, rreadTITLE, 0, 550 ,25, 0, rreadLEN)                        
+        if MidCounter ==0:
+            rreadLEFT = rreadSPOS-10
+            rreadRIGHT = rreadEPOS +10
+            HitCount = 0
+        if rreadSPOS >= rreadLEFT and rreadEPOS <= rreadRIGHT:
+            HitCount = HitCount +1   
+        #print rreadSPOS*LenCorrect, rreadEPOS*LenCorrect
+        
+        if MidCounter ==readADJUST:
+            print "hitcount ...", HitCount 
+            yOff = yOff+1              
+            feature(rreadSPOS*LenCorrect+50, rreadEPOS*LenCorrect+50, 25+yOff, HitCount,0, readADJUST, 1,1, "x", rreadSPEC, rreadDIR)
+            MidCounter = 0
+            Counter = Counter+1  
+                   
+        else:
+            MidCounter = MidCounter + 1   
+        
+                    
+        if Counter == 1000000:
+           break
+    c.save()      
+def genome(c,title,startpos,endpos,yOff,genStartSTR, genEndSTR):
+  #  c.setFillColor(green)
+    print 'start,end', startpos, endpos
+   
+    Blu = CMYKColor(1,1,0,0)
+    c.setFillColor(Blu)
+    c.setStrokeColor(Blu)
+    c.setFont("Times-Roman", 12)
+    c.drawString(50,810-yOff,title)    
+   # c.drawString(50,795-yOff,TXID)   
+    endpos
+    c.line(50,780-yOff,endpos,780-yOff)
+    
+   # c.setFillColor(blue)
+    c.setFont("Times-Roman", 7)     
+    c.drawString(25,775-yOff, str(genStartSTR))
+    c.drawString(endpos+5,775-yOff, str(genEndSTR))
+    
+def feature(Fstart,Fend,yOff,hits,Hstart,Hstep, bAVG, bSTDEV, posnX, SpecID, ReadFR):
+    hits = int(hits)  
+    if SpecID==1:
+        ColorID = CMYKColor(0,0,0,1)
+        #print 'blah'
+    if SpecID==2:
+        ColorID = CMYKColor(1,0,1,0)
+    if SpecID==3:
+        ColorID = CMYKColor(1,1,0,0)   
+    if SpecID==4:
+        ColorID= CMYKColor(0,1,1,0)
+    if SpecID==5:
+        ColorID = CMYKColor(0,.5,1,0)
+    if SpecID==6:
+        ColorID = CMYKColor(0,1,0,0)
+    if SpecID==7:
+        ColorID = CMYKColor(0,.5,1,0)
+    if SpecID==8:
+        ColorID = CMYKColor(0,1,1,0)
+    if SpecID==9:
+        ColorID = CMYKColor(0,0,1,0)
+    if SpecID==10:
+        ColorID = CMYKColor(0,0,1,0)      
+    DrawMarker(ColorID, 0, 780, Fstart, Fend, yOff, posnX, ReadFR)
+
+def featureDEPRECATED(Fstart,Fend,yOff,hits,Hstart,Hstep, bAVG, bSTDEV, posnX, SpecID):
+    hits = int(hits)  
+    if hits<=2:
+        ColorID = CMYKColor(0,0,0,1)
+        #print 'blah'
+    if hits > 2:
+        ColorID = CMYKColor(1,0,1,0)
+    if hits > 4:
+        ColorID = CMYKColor(1,1,0,0)   
+    if hits > 8:
+        ColorID= CMYKColor(0,1,1,0)
+    if hits > 16:
+        ColorID = CMYKColor(0,.5,1,0)
+    if hits > 32:
+        ColorID = CMYKColor(0,1,0,0)
+    if hits > 64:
+        ColorID = CMYKColor(0,.5,1,0)
+    if hits > 128:
+        ColorID = CMYKColor(0,1,1,0)
+    if hits > 256:
+        ColorID = CMYKColor(0,0,1,0)
+    if hits > 512:
+        ColorID = CMYKColor(0,0,1,0)      
+    DrawMarker(ColorID, 0, 780, Fstart, Fend, yOff, posnX)  
+        
+def DrawMarkerDEPRECATED(ColorID, Xb, Yb, Fstart, Fend, yOff, posnX):
+    c.setFillColor(ColorID)
+    p = c.beginPath()
+    Blu = CMYKColor(0,1,1,0)
+    c.setStrokeColor(ColorID)
+    radius = 2
+    c.setFont("Times-Roman", 6)
+    
+    p.moveTo(Xb+Fstart, Yb-yOff-0)
+    p.lineTo(Xb+Fend, Yb-yOff-0)
+    print Xb+Fstart, Xb+Fend 
+    c.drawPath(p, fill=1)
+    
+   # c.drawString(Xb+Fstart,Yb-yOff+18, str(posnX))
+
+def DrawMarker(ColorID, Xb, Yb, Fstart, Fend, yOff, posnX, ReadFR):
+    c.setFillColor(ColorID)
+    p = c.beginPath()
+    Blu = CMYKColor(0,1,1,0)
+    c.setStrokeColor(ColorID)
+    radius = 1
+    c.setFont("Times-Roman", 6)
+    
+    p.moveTo(Xb+Fstart, Yb-yOff-0)
+    p.lineTo(Xb+Fend+1, Yb-yOff-0)  # Added size to the marker
+    print Xb+Fstart, Xb+Fend
+    print "DIRECTION", ReadFR, "<<<<<<<<<<<<"
+    
+    if ReadFR == "F1" or ReadFR =="F2":
+        FWDcol = CMYKColor(1,0,1,0)
+        c.setFillColor(FWDcol)
+        c.setStrokeColor(FWDcol)
+        p.moveTo(Xb+Fend, Yb-yOff-0)
+        p.lineTo(Xb+Fend+6, Yb-yOff-0)
+        p.lineTo(Xb+Fend+3, Yb-yOff-3)
+    # print "THIS WAS FFFFFFFFOOOOOORWWWWAAARRDDDDD!!!!"
+    if ReadFR == "R1" or ReadFR == "R2":
+        REVcol = CMYKColor(0,1,1,0)
+        c.setFillColor(REVcol)
+        c.setStrokeColor(REVcol)
+        p.moveTo(Xb+Fstart, Yb-yOff-0)
+        p.lineTo(Xb+Fstart-6, Yb-yOff-0)
+        p.lineTo(Xb+Fstart-3, Yb-yOff-3)
+    #   print "THIS WAS RRRRRRREEEEEVVVVVEEERRRSSSSSEEE!!!"
+    if ReadFR == "VF1" or ReadFR == "VF2":
+        REVcol = CMYKColor(1,.75,0,0)
+        c.setFillColor(REVcol)
+        c.setStrokeColor(REVcol)
+        p.moveTo(Xb+Fend, Yb-yOff-0)
+        p.lineTo(Xb+Fend+6, Yb-yOff-0)
+        p.lineTo(Xb+Fend+3, Yb-yOff-3)
+    if ReadFR == "VR1" or ReadFR == "VR2":
+        REVcol = CMYKColor(.20,.8,0,0)
+        c.setFillColor(REVcol)
+        c.setStrokeColor(REVcol)
+        p.moveTo(Xb+Fstart, Yb-yOff-0)
+        p.lineTo(Xb+Fstart-6, Yb-yOff-0)
+        p.lineTo(Xb+Fstart-3, Yb-yOff-3)
+    #print "------------------"
+    #c.setStrokeColor(ColorID)
+    c.drawPath(p, fill=0)
+
+def RunVelvet(Infile):
+    import os
+    import sys
+    print "Running Velveth"
+    
+    VELVETh_CMDLINE = "/users/rwbarrettemac/bioinformatics/velvet/velveth /users/rwbarrettemac/bioinformatics/velvet/data/Assem 21 -fastq -short %s"
+    status = os.system(VELVETh_CMDLINE % (Infile))
+    
+    VELVETg_CMDLINE = "/users/rwbarrettemac/bioinformatics/velvet/velvetg /users/rwbarrettemac/bioinformatics/velvet/data/Assem -unused_reads yes"
+    status = os.system(VELVETg_CMDLINE)
+
+#title = "virus_name"
+
+#startpos = 50
+#endpos = 550
+#yOff = 20
+#TaxString = "na"
+
+############################################ END DRAW GENOME #################################
+     
+# SYSTEM VARIABLES
+
+HOSTlocal = "localhost"
+HOSTremote = "localhost"
+DB = "_"
+USER = "_"
+PASS = "_"
+ComputerID = "_"
+FileID = "VacciniaSTconsol"
+
+FWD_reads1 = "/users/rwbarrettemac/MiSeqRuns/MS10072015/VacciniaSTconsolF.fastq"
+REV_reads1 = "/users/rwbarrettemac/MiSeqRuns/MS10072015/VacciniaSTconsolR.fastq"
+
+VelvetReads1 ="/users/rwbarrettemac/MiSeqRuns/9212015miseq/SHresults/SHout/Pre1/contigs.fa"
+
+FWD_reads2 = "/users/rwbarrettemac/MiSeqRuns/1_15_15MiSeq/DBMooseRNADNA_S7_L001_R2_001.fastq"
+REV_reads2 = "/users/rwbarrettemac/MiSeqRuns/1_15_15MiSeq/DBMooseRNADNA_S7_L001_R2_001.fastq"
+#############################################
+# RUN ON STARTUP
+
+####MakeDB("/users/rwbarrettemac/bioinformatics/pythonfolders/TorrentFiles/RawSequenceList.fasta", "nucl", "/users/rwbarrettemac/bioinformatics/pythonfolders/TorrentFiles/TorrentDB/RawSequenceDB")
+
+
+c = canvas.Canvas("/users/rwbarrettemac/MiSeqRuns/9212015miseq/SHresults/SHout/Pre1/100cutoff4.pdf")
+
+SetupTables(FileID)
+#############################################
+
+IDcount = ReadFastQinFile(VelvetReads1, FileID, "VF1", "fasta", 0)
+
+IDcount = ReadFastQinFile(FWD_reads1, FileID, "F1", "fastq", 0)
+IDcount = ReadFastQinFile(REV_reads1, FileID, "R1", "fastq", IDcount)
+IDcount = ReadFastQinFile(FWD_reads2, FileID, "F2", "fastq", IDcount)
+IDcount = ReadFastQinFile(REV_reads2, FileID, "R2", "fastq", IDcount)
+MakeDB("/users/rwbarrettemac/bioinformatics/pythonfolders/TorrentFiles/RawSequenceList.fasta", "nucl", "/users/rwbarrettemac/bioinformatics/pythonfolders/TorrentFiles/TorrentDB/RawSequenceDB")
+
+IterateVirusFile(FileID, "/users/rwbarrettemac/MiSeqRuns/AllRefVirus.fasta")
+
+
+c.showPage()
+c.save()
