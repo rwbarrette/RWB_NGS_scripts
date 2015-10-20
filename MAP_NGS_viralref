@@ -52,8 +52,6 @@ def SetupTables(FileID):
                         """) %(FileID)
     cursor.execute(executeline3)
     
-
-    
     cursor.close() 
     conn.commit()
     conn.close()
@@ -88,8 +86,6 @@ def ReadFastQinFile(infile_FASTq, FileID, Direction, FASTformat, IDstart): #Sets
     print "Reading Fastq " + Direction + "..."
     for seqb in fq_dict2:
         if FASTformat=="fastq":
-        
-        
             if ID <>-1:
                 ID = ID + 1
                 QscoreMin = min(seqb.letter_annotations["phred_quality"])
@@ -141,11 +137,8 @@ def ReadFastQinFile(infile_FASTq, FileID, Direction, FASTformat, IDstart): #Sets
                         fastq_file.write(fasta_sequence[i:i+72])
                         fastq_file.write("\n")
             else:
-                
                     continue
-      
     handleb.close()
-    
     cursor.close()
     conn.commit()
     conn.close()
@@ -171,14 +164,9 @@ def MakeDB(Inputfile, dbType, DBtitle):
     print "Building BLAST database..."
     MAKEDB_CMDLINE = "/usr/local/ncbi/blast/bin/makeblastdb -in %s -out %s -parse_seqids -dbtype %s"
     status = os.system(MAKEDB_CMDLINE % (Inputfile, DBtitle, dbType))
-
         
 def IterateVirusFile(FileID, ViralDB):
     from Bio import SeqIO
-    
-  
-
-
     conn1 = MySQLdb.connect(host = HOSTremote,
                            user = USER,
                            passwd = PASS,
@@ -209,7 +197,6 @@ def IterateVirusFile(FileID, ViralDB):
     
     ConsolidateCount = 0
     
-        
         #TorrentHandlePRE = open("/users/rwbarrettemac/bioinformatics/pythonfolders/TorrentFiles/RawSequenceList.fasta")
     TorrentHandlePRE = open(ViralDB)
     fq_list = SeqIO.parse(TorrentHandlePRE, "fasta")
@@ -237,8 +224,6 @@ def IterateVirusFile(FileID, ViralDB):
                        )                     
                        """) %(FileID)
         cursor.execute(executeline)
-        
-        
         
         cursor.close()
         conn.commit()
@@ -306,13 +291,9 @@ def BLASTN_v29(outfile, infile, dbfile):
     
     status = os.system(BLASTN_CMDLINE % (outfile, infile, dbfile))
 
-
-
 def BlastSequencesV29(TemplateInFile, BlastType,QueTitle,FileID):
 
     from Bio.Blast.Applications import NcbiblastnCommandline
-    
-    
     
     BlastNThandle = open(TemplateInFile)
     BlastNTread = SeqIO.parse(BlastNThandle,"fasta")
@@ -342,7 +323,6 @@ def BlastSequencesV29(TemplateInFile, BlastType,QueTitle,FileID):
     result_handleNEW = open("/users/rwbarrettemac/bioinformatics/pythonfolders/TorrentFiles/VIRCurrentTorrent.xml")
     blast_records = NCBIXML.parse(result_handleNEW)
     for blast_record in blast_records:
-            
             
                                for alignment in blast_record.alignments:
                 #if IDcnt <1:
@@ -442,7 +422,6 @@ def BlastSequencesV29(TemplateInFile, BlastType,QueTitle,FileID):
                         
 #cursor.execute(ActLine)
 
-        
         #  IDcnt = IDcnt + 1
         
     Updateline = """INSERT INTO VIRALReadProfiles%s (Title, ReadCount)
@@ -452,19 +431,14 @@ def BlastSequencesV29(TemplateInFile, BlastType,QueTitle,FileID):
             """ %(FileID, FileID, FileID, FileID, FileID)
     cursor.execute(Updateline)
         
-        
     cursor.close()
     conn.commit()
     conn.close()
         
-        
     draw_genome(FileID)
-        
         
     print INDEX
        
-
-
 ############################################# DRAW GENOME ####################################
 
 from reportlab.pdfgen import canvas
@@ -495,7 +469,6 @@ def draw_genome(FileID):
     cursor.execute(selectline)
     RemReads = cursor.fetchall()
     for rreads in RemReads:
-        
         
         rreadGI = rreads[0]
         rreadTITLE = rreads[1]
@@ -554,8 +527,7 @@ def draw_genomeCONSOLIDATED(FileID):
     cursor.execute(selectline)
     RemReads = cursor.fetchall()
     for rreads in RemReads:
-        
-        
+    
         rreadGI = rreads[0]
         rreadTITLE = rreads[1]
         rreadLEN = rreads[2]
@@ -777,7 +749,6 @@ IDcount = ReadFastQinFile(REV_reads2, FileID, "R2", "fastq", IDcount)
 MakeDB("/users/rwbarrettemac/bioinformatics/pythonfolders/TorrentFiles/RawSequenceList.fasta", "nucl", "/users/rwbarrettemac/bioinformatics/pythonfolders/TorrentFiles/TorrentDB/RawSequenceDB")
 
 IterateVirusFile(FileID, "/users/rwbarrettemac/MiSeqRuns/AllRefVirus.fasta")
-
 
 c.showPage()
 c.save()
