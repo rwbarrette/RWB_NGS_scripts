@@ -32,7 +32,7 @@ MONITOR = "roger.w.barrette@gmail.com"
 HOSTlocal = "localhost"
 HOSTremote = "localhost"
 DB = "Torrent"
-USER = "root"
+USER = <user>
 PASS = <password>
 ComputerID = "NODE1"
 
