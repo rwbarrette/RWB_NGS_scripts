@@ -16,7 +16,7 @@ HOSTlocal = "localhost"
 HOSTremote = "localhost"
 DB = "Torrent"
 USER = "root"
-PASS = "Piobmare,774"
+PASS = <password>
 ComputerID = ""
 
 Btag = "GTTTCCAAGTCACCTAGT"  #was originally appending to sequences, but commented out that line of code (Line 183)
