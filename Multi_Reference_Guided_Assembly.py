@@ -33,7 +33,7 @@ HOSTlocal = "localhost"
 HOSTremote = "localhost"
 DB = "Torrent"
 USER = "root"
-PASS = "Piobmare,774"
+PASS = <password>
 ComputerID = "NODE1"
 
 
