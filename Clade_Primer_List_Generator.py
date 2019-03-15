@@ -15,7 +15,7 @@ MONITOR = ""
 HOSTlocal = "localhost"
 HOSTremote = "localhost"
 DB = "Torrent"
-USER = "root"
+USER = <user>
 PASS = <password>
 ComputerID = ""
 
